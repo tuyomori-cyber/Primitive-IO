@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Primitive IO",
+  "version": "0.1.0",
+  "description": "Select Dropbox file paths from ChatGPT Web.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "primitive-io@example.local",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": ["identity", "storage", "scripting"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://api.dropboxapi.com/*",
+    "https://www.dropbox.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

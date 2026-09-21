@@ -1,12 +1,12 @@
 # Primitive IO — MVP仕様
 
-- 文書版: v0.1.1
+- 文書版: v0.1.2
 - 作成日: 2026-09-21
 - 状態: 構想・MVP仕様
 - 対象: Firefox / ChatGPT Web / Dropbox
 
 ## 1. 概要
-ChatGPT WebにDropboxのファイルツリーをサイドバー表示し、Dropbox上の1個または複数ファイルをGUIで選択して「読み込み」できるFirefox拡張。
+ChatGPT WebにDropboxのファイルツリーをサイドバー表示し、Dropbox上の1個または複数ファイルをGUIで選択して「読み込み」できるFirefox用ブラウザ拡張。MVPはFirefoxに限定する。
 
 拡張自身はファイル本文をChatGPTへ貼り付けない。選択したDropboxファイルのパスから定型プロンプトを生成し、ChatGPT入力欄へ投入する。既定ではユーザーが内容を確認して送信し、任意設定で拡張がそのまま送信できる。実際の本文取得はChatGPT側のDropbox連携に任せる。
 
@@ -189,13 +189,13 @@ ChatGPT側のDropbox読み込み失敗は通常のChatGPTメッセージに任�
 - ユーザー操作なしの自動巡回・自動送信なし
 
 ## 12. 対象環境
-- Firefox
+- Firefox用ブラウザ拡張（MVPはFirefoxのみ）
 - Linux / Xubuntu
 - ChatGPT Web
 - Dropbox
 - Markdown中心
 
-GitHub等での小規模公開を想定。Chrome Web Store等への一般公開はMVP対象外。Chromium対応は需要が生じた場合に検討する。
+GitHub等での小規模公開を想定。Chrome、Chromium、Firefox以外のブラウザ、および各ストアでの一般公開はMVP対象外。Firefox固有APIを利用してよく、クロスブラウザ互換性はMVPの設計制約としない。Chromium対応は需要が生じた場合に別途検討する。
 
 ## 13. 将来候補
 ### 新規保存

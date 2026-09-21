@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Primitive IO 設定</title>
+    <style>
+      body { max-width: 680px; margin: 40px auto; padding: 0 20px; color: #202124; font-family: system-ui, sans-serif; }
+      section { margin: 24px 0; padding: 20px; border: 1px solid #dadce0; border-radius: 10px; }
+      label, input, button { display: block; }
+      label { margin-bottom: 8px; font-weight: 600; }
+      input { width: 100%; box-sizing: border-box; padding: 8px; }
+      code { display: block; overflow-wrap: anywhere; padding: 8px; background: #f1f3f4; }
+      button { margin-top: 12px; padding: 8px 12px; }
+      #connection-actions { display: flex; gap: 8px; }
+      #connection-actions button { display: none; }
+      #status { min-height: 1.5em; }
+      .error { color: #b3261e; }
+      .success { color: #137333; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Primitive IO 設定</h1>
+      <section>
+        <h2>Dropboxアプリ</h2>
+        <p>Dropbox Developer Consoleで作成したApp keyを入力します。クライアントシークレットは入力・保存しません。</p>
+        <label for="app-key">Dropbox App key</label>
+        <input id="app-key" type="text" autocomplete="off" spellcheck="false" />
+        <button id="save-app-key" type="button">App keyを保存</button>
+        <p>Dropboxアプリへ登録するOAuthリダイレクトURL:</p>
+        <code id="redirect-uri">読み込み中…</code>
+      </section>
+      <section>
+        <h2>接続状態</h2>
+        <p id="connection-state">確認中…</p>
+        <div id="connection-actions">
+          <button id="connect" type="button">Dropboxへ接続</button>
+          <button id="verify" type="button">接続を確認</button>
+          <button id="disconnect" type="button">接続解除</button>
+        </div>
+        <p id="status" aria-live="polite"></p>
+      </section>
+      <section>
+        <h2>Dropbox Explorer 接続テスト</h2>
+        <p>root直下の名前と種別だけを取得します。ファイル本文は取得しません。</p>
+        <button id="list-root" type="button">rootを取得</button>
+        <pre id="root-entries" aria-live="polite"></pre>
+      </section>
+      <section>
+        <h2>読み込み動作</h2>
+        <label><input id="auto-send" type="checkbox" /> プロンプト投入後に自動送信する</label>
+        <p>既定はオフです。設定はFirefoxを再起動した後も復元します。</p>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
