@@ -2,7 +2,7 @@ import {
   connectDropbox,
   disconnectDropbox,
   getDropboxAuthStatus,
-  saveDropboxAppKey,
+  migrateBundledDropboxApp,
   verifyDropboxConnection
 } from "./dropboxAuth";
 import { listDropboxFolder } from "./dropboxClient";
@@ -27,6 +27,9 @@ async function injectContentScript(tabId: number): Promise<void> {
 
 browser.runtime.onInstalled.addListener(() => {
   console.info("Primitive IO installed");
+  void migrateBundledDropboxApp().catch((error) => {
+    console.warn("Primitive IO could not migrate Dropbox settings", error);
+  });
 });
 
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -54,11 +57,6 @@ browser.runtime.onMessage.addListener((message: unknown) => {
     switch (message.type) {
       case "primitive-io:dropbox-status":
         return getDropboxAuthStatus();
-      case "primitive-io:dropbox-save-app-key":
-        if ("appKey" in message && typeof message.appKey === "string") {
-          return saveDropboxAppKey(message.appKey);
-        }
-        return Promise.reject(new Error("Dropbox App keyが不正です。"));
       case "primitive-io:dropbox-connect":
         return connectDropbox();
       case "primitive-io:dropbox-disconnect":
@@ -66,10 +64,10 @@ browser.runtime.onMessage.addListener((message: unknown) => {
       case "primitive-io:dropbox-verify":
         return verifyDropboxConnection();
       case "primitive-io:dropbox-list-folder":
-        if ("path" in message && typeof message.path === "string") {
-          return listDropboxFolder(message.path);
+        if ("folderId" in message && typeof message.folderId === "string") {
+          return listDropboxFolder(message.folderId);
         }
-        return Promise.reject(new Error("Dropboxフォルダのパスが不正です。"));
+        return Promise.reject(new Error("DropboxフォルダIDが不正です。"));
       case "primitive-io:auto-send-get":
         return getAutoSend();
       case "primitive-io:auto-send-set":

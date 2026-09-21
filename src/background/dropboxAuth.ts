@@ -1,10 +1,12 @@
+import { dropboxAppKey } from "./dropboxConfig";
+
 const authorizationEndpoint = "https://www.dropbox.com/oauth2/authorize";
 const tokenEndpoint = "https://api.dropboxapi.com/oauth2/token";
 const currentAccountEndpoint = "https://api.dropboxapi.com/2/users/get_current_account";
 const revokeTokenEndpoint = "https://api.dropboxapi.com/2/auth/token/revoke";
 
 const storageKeys = {
-  appKey: "dropboxAppKey",
+  legacyAppKey: "dropboxAppKey",
   tokens: "dropboxTokens",
   account: "dropboxAccount"
 } as const;
@@ -22,7 +24,6 @@ export type DropboxAccount = {
 };
 
 export type DropboxAuthStatus = {
-  appKey: string;
   redirectUri: string;
   connected: boolean;
   account?: DropboxAccount;
@@ -39,6 +40,17 @@ type DropboxAccountResponse = {
   email: string;
   name: { display_name: string };
 };
+
+/** Clears credentials made with a different App key before bundled-key rollout. */
+export async function migrateBundledDropboxApp(): Promise<void> {
+  const stored = await browser.storage.local.get(storageKeys.legacyAppKey);
+  const legacyAppKey = stored[storageKeys.legacyAppKey];
+  await browser.storage.local.remove(storageKeys.legacyAppKey);
+
+  if (typeof legacyAppKey === "string" && legacyAppKey.trim() !== dropboxAppKey) {
+    await browser.storage.local.remove([storageKeys.tokens, storageKeys.account]);
+  }
+}
 
 function asBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -59,11 +71,6 @@ async function createCodeChallenge(verifier: string): Promise<string> {
   const encoded = new TextEncoder().encode(verifier);
   const digest = await crypto.subtle.digest("SHA-256", encoded);
   return asBase64Url(new Uint8Array(digest));
-}
-
-async function readAppKey(): Promise<string> {
-  const values = await browser.storage.local.get(storageKeys.appKey);
-  return typeof values[storageKeys.appKey] === "string" ? values[storageKeys.appKey].trim() : "";
 }
 
 async function readTokens(): Promise<DropboxTokens | undefined> {
@@ -115,9 +122,8 @@ function saveTokens(response: DropboxTokenResponse, existingRefreshToken?: strin
 }
 
 export async function getDropboxAccessToken(): Promise<string> {
-  const appKey = await readAppKey();
   const tokens = await readTokens();
-  if (!appKey || !tokens) {
+  if (!tokens) {
     throw new Error("Dropboxに接続されていません。");
   }
 
@@ -128,7 +134,7 @@ export async function getDropboxAccessToken(): Promise<string> {
   const parameters = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: tokens.refreshToken,
-    client_id: appKey
+    client_id: dropboxAppKey
   });
   const refreshed = await tokenRequest(parameters);
   await saveTokens(refreshed, tokens.refreshToken);
@@ -158,45 +164,27 @@ async function fetchAccount(accessToken: string): Promise<DropboxAccount> {
 }
 
 export async function getDropboxAuthStatus(): Promise<DropboxAuthStatus> {
-  const [appKey, account, tokens] = await Promise.all([
-    readAppKey(),
+  const [account, tokens] = await Promise.all([
     browser.storage.local.get(storageKeys.account),
     readTokens()
   ]);
   const storedAccount = account[storageKeys.account] as DropboxAccount | undefined;
 
   return {
-    appKey,
     redirectUri: browser.identity.getRedirectURL(),
     connected: tokens !== undefined && storedAccount !== undefined,
     account: storedAccount
   };
 }
 
-export async function saveDropboxAppKey(appKey: string): Promise<DropboxAuthStatus> {
-  const normalizedAppKey = appKey.trim();
-  if (!normalizedAppKey) {
-    throw new Error("Dropbox App keyを入力してください。");
-  }
-
-  await browser.storage.local.set({ [storageKeys.appKey]: normalizedAppKey });
-  await browser.storage.local.remove([storageKeys.tokens, storageKeys.account]);
-  return getDropboxAuthStatus();
-}
-
 export async function connectDropbox(): Promise<DropboxAuthStatus> {
-  const appKey = await readAppKey();
-  if (!appKey) {
-    throw new Error("先にDropbox App keyを保存してください。");
-  }
-
   const redirectUri = browser.identity.getRedirectURL();
   const state = randomBase64Url();
   const verifier = randomBase64Url(64);
   const challenge = await createCodeChallenge(verifier);
   const authorizationUrl = new URL(authorizationEndpoint);
   authorizationUrl.search = new URLSearchParams({
-    client_id: appKey,
+    client_id: dropboxAppKey,
     response_type: "code",
     redirect_uri: redirectUri,
     token_access_type: "offline",
@@ -231,7 +219,7 @@ export async function connectDropbox(): Promise<DropboxAuthStatus> {
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
     code_verifier: verifier,
-    client_id: appKey
+    client_id: dropboxAppKey
   }));
   await saveTokens(tokens);
 

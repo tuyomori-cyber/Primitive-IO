@@ -6,7 +6,6 @@ type DropboxAccount = {
 };
 
 type DropboxAuthStatus = {
-  appKey: string;
   connected: boolean;
   account?: DropboxAccount;
 };
@@ -18,7 +17,7 @@ type DropboxEntry = {
   type: "file" | "folder";
 };
 
-const rootPath = "";
+const rootFolderId = "";
 
 function setStyles(element: HTMLElement, styles: Record<string, string>): void {
   for (const [property, value] of Object.entries(styles)) {
@@ -43,8 +42,8 @@ async function authStatus(): Promise<DropboxAuthStatus> {
   return browser.runtime.sendMessage({ type: "primitive-io:dropbox-status" }) as Promise<DropboxAuthStatus>;
 }
 
-async function listFolder(path: string): Promise<DropboxEntry[]> {
-  return browser.runtime.sendMessage({ type: "primitive-io:dropbox-list-folder", path }) as Promise<DropboxEntry[]>;
+async function listFolder(folderId: string): Promise<DropboxEntry[]> {
+  return browser.runtime.sendMessage({ type: "primitive-io:dropbox-list-folder", folderId }) as Promise<DropboxEntry[]>;
 }
 
 async function getAutoSend(): Promise<boolean> {
@@ -173,9 +172,9 @@ export function mountDropboxExplorer(): void {
   footer.append(selectionSummary, readButton, notice, autoSendIndicator);
   document.body.append(launcher, panel);
 
-  const entriesByPath = new Map<string, DropboxEntry[]>();
-  const expandedPaths = new Set<string>();
-  const loadingPaths = new Set<string>();
+  const entriesByFolderId = new Map<string, DropboxEntry[]>();
+  const expandedFolderIds = new Set<string>();
+  const loadingFolderIds = new Set<string>();
   const selectedEntries = new Map<string, DropboxEntry>();
   let available = false;
   let autoSend = false;
@@ -232,8 +231,8 @@ export function mountDropboxExplorer(): void {
     return row;
   }
 
-  function renderPath(path: string, depth: number, target: HTMLElement): void {
-    const entries = entriesByPath.get(path);
+  function renderFolder(folderId: string, depth: number, target: HTMLElement): void {
+    const entries = entriesByFolderId.get(folderId);
     if (!entries) {
       const loading = makeElement("p", "読み込み中…");
       setStyles(loading, { margin: "6px 12px", color: "#5f6368", "font-size": "12px" });
@@ -241,7 +240,7 @@ export function mountDropboxExplorer(): void {
       return;
     }
 
-    if (entries.length === 0 && path === rootPath) {
+    if (entries.length === 0 && folderId === rootFolderId) {
       const empty = makeElement("p", "Dropbox rootは空です。");
       setStyles(empty, { margin: "8px 12px", color: "#5f6368", "font-size": "13px" });
       target.append(empty);
@@ -256,7 +255,7 @@ export function mountDropboxExplorer(): void {
 
       const folder = makeElement("button");
       folder.type = "button";
-      const expanded = expandedPaths.has(entry.path);
+      const expanded = expandedFolderIds.has(entry.id);
       folder.textContent = `${expanded ? "▼" : "▶"} 📁 ${entry.name}`;
       folder.title = entry.path;
       setStyles(folder, {
@@ -275,25 +274,25 @@ export function mountDropboxExplorer(): void {
         "overflow-wrap": "anywhere"
       });
       folder.addEventListener("click", () => {
-        if (expandedPaths.has(entry.path)) {
-          expandedPaths.delete(entry.path);
+        if (expandedFolderIds.has(entry.id)) {
+          expandedFolderIds.delete(entry.id);
           render();
           return;
         }
-        expandedPaths.add(entry.path);
-        void load(entry.path);
+        expandedFolderIds.add(entry.id);
+        void load(entry.id);
       });
       target.append(folder);
 
       if (expanded) {
         const children = makeElement("div");
         target.append(children);
-        if (loadingPaths.has(entry.path)) {
+        if (loadingFolderIds.has(entry.id)) {
           const loading = makeElement("p", "読み込み中…");
           setStyles(loading, { margin: "6px 12px", color: "#5f6368", "font-size": "12px" });
           children.append(loading);
         } else {
-          renderPath(entry.path, depth + 1, children);
+          renderFolder(entry.id, depth + 1, children);
         }
       }
     }
@@ -306,7 +305,7 @@ export function mountDropboxExplorer(): void {
       renderFooter();
       return;
     }
-    renderPath(rootPath, 0, body);
+    renderFolder(rootFolderId, 0, body);
     renderFooter();
   }
 
@@ -318,26 +317,26 @@ export function mountDropboxExplorer(): void {
     autoSendIndicator.textContent = `自動送信: ${autoSend ? "ON" : "OFF"}`;
   }
 
-  async function load(path: string, force = false): Promise<void> {
-    if (loadingPaths.has(path) || (!force && entriesByPath.has(path))) {
+  async function load(folderId: string, force = false): Promise<void> {
+    if (loadingFolderIds.has(folderId) || (!force && entriesByFolderId.has(folderId))) {
       render();
       return;
     }
 
-    loadingPaths.add(path);
+    loadingFolderIds.add(folderId);
     render();
     try {
-      entriesByPath.set(path, await listFolder(path));
+      entriesByFolderId.set(folderId, await listFolder(folderId));
     } catch (error) {
-      if (path === rootPath) {
+      if (folderId === rootFolderId) {
         available = false;
         setMessage(error instanceof Error ? error.message : "Dropboxフォルダを取得できませんでした。", "#b3261e");
       } else {
-        expandedPaths.delete(path);
+        expandedFolderIds.delete(folderId);
         showNotice(error instanceof Error ? error.message : "Dropboxフォルダを取得できませんでした。", "#b3261e");
       }
     } finally {
-      loadingPaths.delete(path);
+      loadingFolderIds.delete(folderId);
       render();
     }
   }
@@ -345,13 +344,6 @@ export function mountDropboxExplorer(): void {
   async function start(): Promise<void> {
     try {
       const status = await authStatus();
-      if (!status.appKey) {
-        available = false;
-        account.textContent = "未設定";
-        setMessage("Dropbox App keyを設定画面で保存してください。", "#b3261e");
-        render();
-        return;
-      }
       if (!status.connected) {
         available = false;
         account.textContent = "未接続";
@@ -362,7 +354,7 @@ export function mountDropboxExplorer(): void {
 
       account.textContent = status.account ? `${status.account.displayName} (${status.account.email})` : "接続済み";
       available = true;
-      await load(rootPath);
+      await load(rootFolderId);
     } catch (error) {
       available = false;
       account.textContent = "エラー";
@@ -372,11 +364,11 @@ export function mountDropboxExplorer(): void {
   }
 
   refresh.addEventListener("click", () => {
-    entriesByPath.clear();
-    expandedPaths.clear();
+    entriesByFolderId.clear();
+    expandedFolderIds.clear();
     selectedEntries.clear();
     showNotice("");
-    void load(rootPath, true);
+    void load(rootFolderId, true);
   });
   readButton.addEventListener("click", async () => {
     const paths = Array.from(selectedEntries.values()).map((entry) => entry.path);

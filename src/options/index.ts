@@ -4,7 +4,6 @@ type DropboxAccount = {
 };
 
 type DropboxAuthStatus = {
-  appKey: string;
   redirectUri: string;
   connected: boolean;
   account?: DropboxAccount;
@@ -12,15 +11,15 @@ type DropboxAuthStatus = {
 
 type DropboxMessage =
   | { type: "primitive-io:dropbox-status" }
-  | { type: "primitive-io:dropbox-save-app-key"; appKey: string }
   | { type: "primitive-io:dropbox-connect" }
   | { type: "primitive-io:dropbox-disconnect" }
   | { type: "primitive-io:dropbox-verify" }
-  | { type: "primitive-io:dropbox-list-folder"; path: string }
+  | { type: "primitive-io:dropbox-list-folder"; folderId: string }
   | { type: "primitive-io:auto-send-get" }
   | { type: "primitive-io:auto-send-set"; enabled: boolean };
 
 type DropboxEntry = {
+  id: string;
   name: string;
   path: string;
   type: "file" | "folder";
@@ -35,11 +34,9 @@ function requiredElement<T extends HTMLElement>(selector: string): T {
   return element;
 }
 
-const appKeyInput = requiredElement<HTMLInputElement>("#app-key");
 const redirectUri = requiredElement<HTMLElement>("#redirect-uri");
 const connectionState = requiredElement<HTMLElement>("#connection-state");
 const statusElement = requiredElement<HTMLElement>("#status");
-const saveButton = requiredElement<HTMLButtonElement>("#save-app-key");
 const connectButton = requiredElement<HTMLButtonElement>("#connect");
 const verifyButton = requiredElement<HTMLButtonElement>("#verify");
 const disconnectButton = requiredElement<HTMLButtonElement>("#disconnect");
@@ -53,19 +50,16 @@ function showStatus(message: string, kind: "success" | "error" | "info" = "info"
 }
 
 function render(auth: DropboxAuthStatus): void {
-  appKeyInput.value = auth.appKey;
   redirectUri.textContent = auth.redirectUri;
-  connectButton.style.display = auth.appKey && !auth.connected ? "block" : "none";
+  connectButton.style.display = !auth.connected ? "block" : "none";
   verifyButton.style.display = auth.connected ? "block" : "none";
   disconnectButton.style.display = auth.connected ? "block" : "none";
   listRootButton.disabled = !auth.connected;
 
   if (auth.connected && auth.account) {
     connectionState.textContent = `接続済み: ${auth.account.displayName}（${auth.account.email}）`;
-  } else if (auth.appKey) {
-    connectionState.textContent = "未接続です。Dropboxへ接続してください。";
   } else {
-    connectionState.textContent = "Dropbox App keyを保存してください。";
+    connectionState.textContent = "未接続です。Dropboxへ接続してください。";
   }
 }
 
@@ -73,8 +67,8 @@ async function request(message: DropboxMessage): Promise<DropboxAuthStatus> {
   return browser.runtime.sendMessage(message) as Promise<DropboxAuthStatus>;
 }
 
-async function requestEntries(path: string): Promise<DropboxEntry[]> {
-  return browser.runtime.sendMessage({ type: "primitive-io:dropbox-list-folder", path }) as Promise<DropboxEntry[]>;
+async function requestEntries(folderId = ""): Promise<DropboxEntry[]> {
+  return browser.runtime.sendMessage({ type: "primitive-io:dropbox-list-folder", folderId }) as Promise<DropboxEntry[]>;
 }
 
 async function readAutoSend(): Promise<boolean> {
@@ -88,15 +82,6 @@ async function saveAutoSend(enabled: boolean): Promise<boolean> {
 async function refresh(): Promise<void> {
   render(await request({ type: "primitive-io:dropbox-status" }));
 }
-
-saveButton.addEventListener("click", async () => {
-  try {
-    render(await request({ type: "primitive-io:dropbox-save-app-key", appKey: appKeyInput.value }));
-    showStatus("App keyを保存しました。", "success");
-  } catch (error) {
-    showStatus(error instanceof Error ? error.message : "App keyを保存できませんでした。", "error");
-  }
-});
 
 connectButton.addEventListener("click", async () => {
   try {

@@ -40,12 +40,12 @@ type ListFolderResponse = {
 
 const inFlightFolderRequests = new Map<string, Promise<DropboxEntry[]>>();
 
-function normalizePath(path: string): string {
-  if (!path || path === "/") {
+function normalizeFolderReference(folderId: string): string {
+  if (!folderId || folderId === "/") {
     return "";
   }
 
-  return path.startsWith("/") ? path : `/${path}`;
+  return folderId;
 }
 
 async function postDropboxJson<T>(url: string, body: unknown): Promise<T> {
@@ -94,9 +94,11 @@ function toEntry(entry: DropboxApiEntry): DropboxEntry | undefined {
   };
 }
 
-async function listFolderInternal(path: string): Promise<DropboxEntry[]> {
+async function listFolderInternal(folderId: string): Promise<DropboxEntry[]> {
   const firstPage = await postDropboxJson<ListFolderResponse>(listFolderEndpoint, {
-    path,
+    // Dropbox accepts a folder ID here. IDs remain stable when a folder is renamed,
+    // unlike display paths, which are retained only for the UI and generated prompt.
+    path: folderId,
     recursive: false,
     include_deleted: false,
     include_mounted_folders: true,
@@ -125,16 +127,16 @@ async function listFolderInternal(path: string): Promise<DropboxEntry[]> {
 }
 
 /** Returns immediate children only; no recursive scan or file-content request is made. */
-export function listDropboxFolder(path = ""): Promise<DropboxEntry[]> {
-  const normalizedPath = normalizePath(path);
-  const existing = inFlightFolderRequests.get(normalizedPath);
+export function listDropboxFolder(folderId = ""): Promise<DropboxEntry[]> {
+  const normalizedFolderId = normalizeFolderReference(folderId);
+  const existing = inFlightFolderRequests.get(normalizedFolderId);
   if (existing) {
     return existing;
   }
 
-  const request = listFolderInternal(normalizedPath).finally(() => {
-    inFlightFolderRequests.delete(normalizedPath);
+  const request = listFolderInternal(normalizedFolderId).finally(() => {
+    inFlightFolderRequests.delete(normalizedFolderId);
   });
-  inFlightFolderRequests.set(normalizedPath, request);
+  inFlightFolderRequests.set(normalizedFolderId, request);
   return request;
 }
