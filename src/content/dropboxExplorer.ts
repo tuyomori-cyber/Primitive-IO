@@ -327,6 +327,12 @@ export function mountDropboxExplorer(): void {
     render();
     try {
       entriesByFolderId.set(folderId, await listFolder(folderId));
+      if (folderId === rootFolderId) {
+        // A previous root-load failure hides the explorer. Restore it once a
+        // manual refresh succeeds after the connection has recovered.
+        available = true;
+        setMessage("");
+      }
     } catch (error) {
       if (folderId === rootFolderId) {
         available = false;
