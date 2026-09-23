@@ -2,6 +2,8 @@
 
 Firefox上のChatGPT WebにDropboxのファイルツリーを表示し、選択したファイルパスをプロンプトとして入力する拡張です。ファイル本文は取得・保存しません。
 
+現在の配布機能はDropbox Explorerです。v0.2.0ではGitHub ExplorerのUIを追加しましたが、GitHubのPAT接続・リポジトリ取得は実装中のため、GitHub Explorerはまだ利用できません。設計と残作業は[GitHub Explorer仕様](specification/Primitive%20IO%20v0.2.0.md)および[実装Todo](.context/ToDo.md)を参照してください。
+
 Firefoxデスクトップ版 140以降が必要です。インストール時には、Dropboxアカウントの表示名・メールアドレスと、ユーザーが選択してChatGPTへ投入するDropboxパスを扱うことをFirefoxのデータ利用許可として表示します。テレメトリや独自サーバーへの送信は行いません。
 
 ## 署名済みXPIをそのまま使う
@@ -70,3 +72,4 @@ Dropbox Developer Consoleには、この拡張のFirefox OAuthリダイレクト
 
 - ChatGPTの入力欄・送信ボタンのDOM構造に依存します。ChatGPTのUI変更後は追従修正が必要になる場合があります。
 - 拡張はDropboxのファイル本文を読み取りません。送信するのは、選択したファイルパスを含むChatGPT向けプロンプトだけです。
+- GitHub ExplorerはUI実装段階です。GitHub接続が完成するまで、GitHubのPATを入力・保存する画面やGitHub API通信は提供しません。

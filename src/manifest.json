@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Primitive IO",
-  "version": "0.1.2",
-  "description": "Select Dropbox file paths from ChatGPT Web.",
+  "version": "0.2.0",
+  "description": "Select cloud file paths from ChatGPT Web.",
   "browser_specific_settings": {
     "gecko": {
       "id": "primitive-io@example.local",

@@ -1,8 +1,8 @@
 {
   "name": "primitive-io",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
-  "description": "Firefox extension that selects Dropbox paths for use in ChatGPT Web.",
+  "description": "Firefox extension that selects cloud file paths for use in ChatGPT Web.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",

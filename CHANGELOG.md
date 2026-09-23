@@ -2,6 +2,17 @@
 
 このプロジェクトは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [0.2.0] - 2026-09-23
+
+### 追加
+
+- GitHub ExplorerのUIを追加。Dropboxとは独立したパネル、リポジトリ/ツリー表示、1〜5件選択、`repository/ref/path`を含むプロンプト生成、既存の下書き保護・自動送信設定への対応を実装。
+- GitHub Explorer v0.2.0の仕様書、認証・REST API・セキュリティ設計、実装Todoを追加。
+
+### 制約
+
+- GitHubのfine-grained PAT接続、リポジトリ列挙、Git Trees API通信は未実装。GitHub Explorerはまだ利用できず、Dropbox Explorerの機能だけを提供する。
+
 ## [0.1.2] - 2026-09-22
 
 ### 修正
