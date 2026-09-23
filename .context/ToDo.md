@@ -145,7 +145,7 @@
 
 ### 9. GitHub Explorer UIとプロンプト生成を実装する（UI実装・型チェック済み。Todo 8完了後に結合確認）
 
-- [x] `githubExplorer.ts` を作り、Dropboxとは独立した開閉パネルを表示する
+- [x] Dropbox/GitHubを単一のCloud Explorerパネルへ統合し、ヘッダーのクライアント選択ドロップダウンで切り替える
 - [x] リポジトリ一覧、既定ブランチ、private/public、遅延ツリー、空・未接続・取得中・エラー状態を表示する
 - [x] 通常ファイルの1〜5件選択、選択解除、repo切替・更新時の選択解除を実装する
 - [x] `repository/ref/path` を含むGitHub専用プロンプトを生成し、既存の下書きを上書きせずChatGPT入力欄へ投入する
@@ -157,11 +157,11 @@
 ### 10. v0.2.0のテスト・配布説明を更新する
 
 - [ ] `githubAuth` と `githubClient` の単体テストを追加する（PAT検証、ページング、URLエンコード、型正規化、truncated、rate limit、ネットワーク失敗）
-- [ ] GitHub ExplorerのUIテストを追加する（5件上限、未接続、空リポジトリ、repo切替、下書き保護、auto-send）
+- [ ] GitHub ExplorerのUIテストを追加する（クライアント切替、5件上限、未接続、空リポジトリ、repo切替、下書き保護、auto-send）
 - [ ] public/private/組織/collaboratorリポジトリ、日本語・記号パス、深い階層、symlink、submodule、truncatedを手動確認する
 - [ ] ChatGPT側GitHub Appに同一リポジトリを許可した状態で、repository/ref/pathの参照を手動確認する
 - [ ] README、CHANGELOG、テスト仕様書、Firefoxのデータ利用申告をGitHub対応へ更新する
-- [ ] Dropbox回帰テストを実施し、保存キー・runtime message・パネル位置の衝突がないことを確認する
+- [ ] Dropbox回帰テストを実施し、保存キー・runtime message・単一パネルでのクライアント切替が相互に干渉しないことを確認する
 
 完了条件: v0.2.0仕様書の完成条件を満たし、Dropbox機能を回帰させずにGitHub Explorerを配布できる。
 

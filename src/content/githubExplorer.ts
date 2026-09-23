@@ -37,11 +37,15 @@ async function getAutoSend(): Promise<boolean> {
   return browser.runtime.sendMessage({ type: "primitive-io:auto-send-get" }) as Promise<boolean>;
 }
 
+async function openOptionsPage(): Promise<void> {
+  await browser.runtime.sendMessage({ type: "primitive-io:open-options-page" });
+}
+
 /** Mounts the GitHub-only explorer. GitHub credentials stay in the background script. */
 export function mountGitHubExplorer(): void {
   if (document.getElementById("primitive-io-github-explorer")) return;
 
-  const launcher = makeElement("button", "GitHub");
+  const launcher = makeElement("button", "Cloud Explorer");
   launcher.type = "button";
   launcher.id = "primitive-io-github-launcher";
   setStyles(launcher, { all: "initial", display: "none", position: "fixed", "z-index": "2147483647", top: "88px", left: "16px", padding: "9px 12px", border: "1px solid #9aa0a6", "border-radius": "8px", background: "#ffffff", color: "#202124", "box-shadow": "0 4px 12px rgb(0 0 0 / 18%)", "font-family": "system-ui, sans-serif", "font-size": "14px", cursor: "pointer" });
@@ -49,14 +53,25 @@ export function mountGitHubExplorer(): void {
   const panel = makeElement("aside");
   panel.id = "primitive-io-github-explorer";
   panel.setAttribute("aria-label", "Primitive IO GitHub Explorer");
-  setStyles(panel, { all: "initial", display: "block", position: "fixed", "z-index": "2147483647", top: "88px", left: "16px", width: "300px", "max-width": "calc(100vw - 32px)", "max-height": "calc(100vh - 112px)", overflow: "auto", border: "1px solid #9aa0a6", "border-radius": "10px", background: "#ffffff", color: "#202124", "box-shadow": "0 8px 24px rgb(0 0 0 / 18%)", "font-family": "system-ui, sans-serif", "font-size": "14px", "line-height": "1.4" });
+  setStyles(panel, { all: "initial", display: "none", position: "fixed", "z-index": "2147483647", top: "88px", right: "16px", width: "300px", "max-width": "calc(100vw - 32px)", "max-height": "calc(100vh - 112px)", overflow: "auto", border: "1px solid #9aa0a6", "border-radius": "10px", background: "#ffffff", color: "#202124", "box-shadow": "0 8px 24px rgb(0 0 0 / 18%)", "font-family": "system-ui, sans-serif", "font-size": "14px", "line-height": "1.4" });
 
   const header = makeElement("div");
-  const title = makeElement("strong", "GitHub");
+  const clientSelector = makeElement("select");
+  clientSelector.setAttribute("aria-label", "表示するクラウドサービス");
+  for (const [value, label] of [["dropbox", "Dropbox"], ["github", "GitHub"]] as const) {
+    const option = makeElement("option", label);
+    option.value = value;
+    clientSelector.append(option);
+  }
+  clientSelector.value = "github";
   const account = makeElement("span", "確認中…");
   const refresh = makeElement("button", "↻");
   refresh.type = "button";
   refresh.title = "リポジトリ一覧を再取得";
+  const settings = makeElement("button", "⚙");
+  settings.type = "button";
+  settings.title = "設定を開く";
+  settings.setAttribute("aria-label", "設定を開く");
   const close = makeElement("button", "×");
   close.type = "button";
   close.title = "閉じる";
@@ -69,9 +84,9 @@ export function mountGitHubExplorer(): void {
   const notice = makeElement("p");
   const autoSendIndicator = makeElement("p", "自動送信: OFF");
   setStyles(header, { display: "flex", "align-items": "center", gap: "8px", padding: "12px", "border-bottom": "1px solid #dadce0" });
-  setStyles(title, { "font-size": "16px" });
+  setStyles(clientSelector, { padding: "2px 4px", border: "1px solid #9aa0a6", "border-radius": "4px", background: "#ffffff", color: "#202124", "font-family": "system-ui, sans-serif", "font-size": "16px", "font-weight": "700", cursor: "pointer" });
   setStyles(account, { flex: "1", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", color: "#5f6368", "font-size": "12px" });
-  for (const button of [refresh, close]) setStyles(button, { all: "initial", display: "inline-block", padding: "2px 6px", border: "0", background: "transparent", color: "#374151", "font-family": "system-ui, sans-serif", "font-size": "18px", cursor: "pointer" });
+  for (const button of [refresh, settings, close]) setStyles(button, { all: "initial", display: "inline-block", padding: "2px 6px", border: "0", background: "transparent", color: "#374151", "font-family": "system-ui, sans-serif", "font-size": "18px", cursor: "pointer" });
   setStyles(body, { padding: "8px 0" });
   setStyles(message, { margin: "8px 12px", color: "#5f6368", "font-size": "13px" });
   setStyles(footer, { padding: "10px 12px", "border-top": "1px solid #dadce0" });
@@ -80,9 +95,24 @@ export function mountGitHubExplorer(): void {
   setStyles(notice, { clear: "both", margin: "8px 0 0", "font-size": "12px", color: "#5f6368" });
   setStyles(autoSendIndicator, { margin: "8px 0 0", "font-size": "11px", color: "#5f6368" });
   panel.append(header, body, footer);
-  header.append(title, account, refresh, close);
+  header.append(clientSelector, account, refresh, settings, close);
   footer.append(selectionSummary, readButton, notice, autoSendIndicator);
   document.body.append(launcher, panel);
+
+  clientSelector.addEventListener("change", () => {
+    document.dispatchEvent(new CustomEvent<string>("primitive-io:client-select", { detail: clientSelector.value }));
+  });
+  document.addEventListener("primitive-io:client-select", (event: Event) => {
+    const client = (event as CustomEvent<string>).detail;
+    if (client === "github") {
+      panel.style.display = "block";
+      launcher.style.display = "none";
+      clientSelector.value = "github";
+    } else if (client === "dropbox") {
+      panel.style.display = "none";
+      launcher.style.display = "none";
+    }
+  });
 
   const entriesByTreeSha = new Map<string, GitHubEntry[]>();
   const expandedTreeShas = new Set<string>();
@@ -188,11 +218,6 @@ export function mountGitHubExplorer(): void {
     body.replaceChildren();
     if (!available) {
       body.append(message);
-      const openSettings = makeElement("button", "設定を開く");
-      openSettings.type = "button";
-      setStyles(openSettings, { all: "initial", display: "block", margin: "8px 12px", padding: "7px 10px", border: "1px solid #2563eb", "border-radius": "6px", color: "#2563eb", "font-family": "system-ui, sans-serif", "font-size": "13px", cursor: "pointer" });
-      openSettings.addEventListener("click", () => { void browser.runtime.openOptionsPage(); });
-      body.append(openSettings);
     }
     else if (!activeRepository) renderRepositories();
     else {
@@ -239,6 +264,15 @@ export function mountGitHubExplorer(): void {
 
   refresh.addEventListener("click", () => {
     repositories = []; activeRepository = undefined; entriesByTreeSha.clear(); expandedTreeShas.clear(); loadingTreeShas.clear(); selectedEntries.clear(); showNotice(""); void start(true);
+  });
+  settings.addEventListener("click", async () => {
+    try {
+      await openOptionsPage();
+      showNotice("設定画面を開きました。", "#137333");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "不明なエラー";
+      showNotice(`設定画面を開けませんでした: ${detail}`, "#b3261e");
+    }
   });
   readButton.addEventListener("click", async () => {
     const prompt = [

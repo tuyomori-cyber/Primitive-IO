@@ -55,6 +55,11 @@ browser.runtime.onMessage.addListener((message: unknown) => {
 
   if (typeof message === "object" && message !== null && "type" in message) {
     switch (message.type) {
+      case "primitive-io:open-options-page":
+        return browser.runtime.openOptionsPage();
+      // Todo 8 の接続処理が実装されるまで、GitHub Explorer には未接続状態を返す。
+      case "primitive-io:github-status":
+        return Promise.resolve({ connected: false });
       case "primitive-io:dropbox-status":
         return getDropboxAuthStatus();
       case "primitive-io:dropbox-connect":

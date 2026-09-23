@@ -50,13 +50,17 @@ async function getAutoSend(): Promise<boolean> {
   return browser.runtime.sendMessage({ type: "primitive-io:auto-send-get" }) as Promise<boolean>;
 }
 
+async function openOptionsPage(): Promise<void> {
+  await browser.runtime.sendMessage({ type: "primitive-io:open-options-page" });
+}
+
 export function mountDropboxExplorer(): void {
   const existing = document.getElementById("primitive-io-explorer");
   if (existing) {
     return;
   }
 
-  const launcher = makeElement("button", "Dropbox");
+  const launcher = makeElement("button", "Cloud Explorer");
   launcher.type = "button";
   launcher.id = "primitive-io-launcher";
   setStyles(launcher, {
@@ -102,11 +106,21 @@ export function mountDropboxExplorer(): void {
   });
 
   const header = makeElement("div");
-  const title = makeElement("strong", "Dropbox");
+  const clientSelector = makeElement("select");
+  clientSelector.setAttribute("aria-label", "表示するクラウドサービス");
+  for (const [value, label] of [["dropbox", "Dropbox"], ["github", "GitHub"]] as const) {
+    const option = makeElement("option", label);
+    option.value = value;
+    clientSelector.append(option);
+  }
   const account = makeElement("span", "確認中…");
   const refresh = makeElement("button", "↻");
   refresh.type = "button";
   refresh.title = "rootを再取得";
+  const settings = makeElement("button", "⚙");
+  settings.type = "button";
+  settings.title = "設定を開く";
+  settings.setAttribute("aria-label", "設定を開く");
   const close = makeElement("button", "×");
   close.type = "button";
   close.title = "閉じる";
@@ -126,7 +140,7 @@ export function mountDropboxExplorer(): void {
     padding: "12px",
     "border-bottom": "1px solid #dadce0"
   });
-  setStyles(title, { "font-size": "16px" });
+  setStyles(clientSelector, { padding: "2px 4px", border: "1px solid #9aa0a6", "border-radius": "4px", background: "#ffffff", color: "#202124", "font-family": "system-ui, sans-serif", "font-size": "16px", "font-weight": "700", cursor: "pointer" });
   setStyles(account, {
     flex: "1",
     overflow: "hidden",
@@ -135,7 +149,7 @@ export function mountDropboxExplorer(): void {
     color: "#5f6368",
     "font-size": "12px"
   });
-  for (const button of [refresh, close]) {
+  for (const button of [refresh, settings, close]) {
     setStyles(button, {
       all: "initial",
       display: "inline-block",
@@ -168,9 +182,24 @@ export function mountDropboxExplorer(): void {
   setStyles(autoSendIndicator, { margin: "8px 0 0", "font-size": "11px", color: "#5f6368" });
 
   panel.append(header, body, footer);
-  header.append(title, account, refresh, close);
+  header.append(clientSelector, account, refresh, settings, close);
   footer.append(selectionSummary, readButton, notice, autoSendIndicator);
   document.body.append(launcher, panel);
+
+  clientSelector.addEventListener("change", () => {
+    document.dispatchEvent(new CustomEvent<string>("primitive-io:client-select", { detail: clientSelector.value }));
+  });
+  document.addEventListener("primitive-io:client-select", (event: Event) => {
+    const client = (event as CustomEvent<string>).detail;
+    if (client === "dropbox") {
+      panel.style.display = "block";
+      launcher.style.display = "none";
+      clientSelector.value = "dropbox";
+    } else if (client === "github") {
+      panel.style.display = "none";
+      launcher.style.display = "none";
+    }
+  });
 
   const entriesByFolderId = new Map<string, DropboxEntry[]>();
   const expandedFolderIds = new Set<string>();
@@ -375,6 +404,15 @@ export function mountDropboxExplorer(): void {
     selectedEntries.clear();
     showNotice("");
     void load(rootFolderId, true);
+  });
+  settings.addEventListener("click", async () => {
+    try {
+      await openOptionsPage();
+      showNotice("設定画面を開きました。", "#137333");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "不明なエラー";
+      showNotice(`設定画面を開けませんでした: ${detail}`, "#b3261e");
+    }
   });
   readButton.addEventListener("click", async () => {
     const paths = Array.from(selectedEntries.values()).map((entry) => entry.path);

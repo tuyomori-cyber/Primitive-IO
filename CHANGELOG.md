@@ -6,7 +6,7 @@
 
 ### 追加
 
-- GitHub ExplorerのUIを追加。Dropboxとは独立したパネル、リポジトリ/ツリー表示、1〜5件選択、`repository/ref/path`を含むプロンプト生成、既存の下書き保護・自動送信設定への対応を実装。
+- GitHub ExplorerのUIを追加。Dropbox/GitHubを単一のCloud Explorerパネル内のドロップダウンで切り替え、リポジトリ/ツリー表示、1〜5件選択、`repository/ref/path`を含むプロンプト生成、既存の下書き保護・自動送信設定への対応を実装。
 - GitHub Explorer v0.2.0の仕様書、認証・REST API・セキュリティ設計、実装Todoを追加。
 
 ### 制約
