@@ -8,10 +8,16 @@
 
 - GitHub ExplorerのUIを追加。Dropbox/GitHubを単一のCloud Explorerパネル内のドロップダウンで切り替え、リポジトリ/ツリー表示、1〜5件選択、`repository/ref/path`を含むプロンプト生成、既存の下書き保護・自動送信設定への対応を実装。
 - GitHub Explorer v0.2.0の仕様書、認証・REST API・セキュリティ設計、実装Todoを追加。
+- fine-grained PATの検証・ローカル保存・接続解除、GitHubリポジトリ一覧のページング、非再帰Git Treeメタデータ取得を追加。
+- 設定画面にGitHub PATの接続・検証・リポジトリ確認・接続解除を追加。
 
+### 確認
+
+- fine-grained PATによるGitHub接続、リポジトリ表示、リポジトリ内ツリー表示をFirefox上で確認。
+
+- GitHub APIのファイル本文取得は現行実装で行わない。本文の参照は、利用者が別途許可したChatGPT側GitHub連携に依存する。
 ### 制約
 
-- GitHubのfine-grained PAT接続、リポジトリ列挙、Git Trees API通信は未実装。GitHub Explorerはまだ利用できず、Dropbox Explorerの機能だけを提供する。
 
 ## [0.1.2] - 2026-09-22
 

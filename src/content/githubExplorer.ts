@@ -4,9 +4,18 @@ type GitHubAccount = { login: string };
 type GitHubAuthStatus = { connected: boolean; account?: GitHubAccount };
 type GitHubRepository = { id: string; owner: string; name: string; fullName: string; private: boolean; defaultBranch: string };
 type GitHubEntry = { name: string; path: string; sha: string; type: "file" | "dir" | "symlink" | "submodule" };
-type SelectedEntry = GitHubEntry & { repository: GitHubRepository };
+export type SelectedGitHubEntry = GitHubEntry & { repository: GitHubRepository };
 
 const maxSelections = 5;
+/** Builds the exact metadata-only instruction inserted into the ChatGPT composer. */
+export function buildGitHubPrompt(entries: Iterable<SelectedGitHubEntry>): string {
+  return [
+    "GitHub 連携を使って、次のリポジトリ内ファイルを読み込み、この会話で参照できる状態にしてください。",
+    "各項目は owner/repository、ref、リポジトリ root からのパスです。", "",
+    ...Array.from(entries).flatMap((entry) => [`- repository: ${entry.repository.fullName}`, `  ref: ${entry.repository.defaultBranch}`, `  path: ${entry.path}`])
+  ].join("\n");
+}
+
 
 function setStyles(element: HTMLElement, styles: Record<string, string>): void {
   for (const [property, value] of Object.entries(styles)) element.style.setProperty(property, value, "important");
@@ -117,7 +126,7 @@ export function mountGitHubExplorer(): void {
   const entriesByTreeSha = new Map<string, GitHubEntry[]>();
   const expandedTreeShas = new Set<string>();
   const loadingTreeShas = new Set<string>();
-  const selectedEntries = new Map<string, SelectedEntry>();
+  const selectedEntries = new Map<string, SelectedGitHubEntry>();
   let repositories: GitHubRepository[] = [];
   let activeRepository: GitHubRepository | undefined;
   let available = false;
@@ -140,6 +149,7 @@ export function mountGitHubExplorer(): void {
     const checkbox = makeElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = selectedEntries.has(key);
+    setStyles(checkbox, { display: "inline-block", width: "16px", height: "16px", appearance: "auto", "flex": "0 0 auto", cursor: "pointer" });
     checkbox.setAttribute("aria-label", `${entry.name}を選択`);
     checkbox.addEventListener("change", () => {
       if (!activeRepository) { checkbox.checked = false; return; }
@@ -275,11 +285,7 @@ export function mountGitHubExplorer(): void {
     }
   });
   readButton.addEventListener("click", async () => {
-    const prompt = [
-      "GitHub 連携を使って、次のリポジトリ内ファイルを読み込み、この会話で参照できる状態にしてください。",
-      "各項目は owner/repository、ref、リポジトリ root からのパスです。", "",
-      ...Array.from(selectedEntries.values()).flatMap((entry) => [`- repository: ${entry.repository.fullName}`, `  ref: ${entry.repository.defaultBranch}`, `  path: ${entry.path}`])
-    ].join("\n");
+    const prompt = buildGitHubPrompt(selectedEntries.values());
     const result = insertTextIntoEmptyComposer(prompt);
     if (!result.ok) { showNotice(result.message, "#b3261e"); return; }
     autoSend = await getAutoSend(); renderFooter();

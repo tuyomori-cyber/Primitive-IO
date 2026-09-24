@@ -6,6 +6,8 @@ import {
   verifyDropboxConnection
 } from "./dropboxAuth";
 import { listDropboxFolder } from "./dropboxClient";
+import { connectGitHub, disconnectGitHub, getGitHubAuthStatus, verifyGitHubConnection } from "./githubAuth";
+import { listGitHubDirectory, listGitHubRepositories } from "./githubClient";
 import { getAutoSend, setAutoSend } from "./extensionSettings";
 
 const chatGptOrigins = ["https://chatgpt.com/", "https://chat.openai.com/"];
@@ -57,9 +59,17 @@ browser.runtime.onMessage.addListener((message: unknown) => {
     switch (message.type) {
       case "primitive-io:open-options-page":
         return browser.runtime.openOptionsPage();
-      // Todo 8 の接続処理が実装されるまで、GitHub Explorer には未接続状態を返す。
       case "primitive-io:github-status":
-        return Promise.resolve({ connected: false });
+        return getGitHubAuthStatus();
+      case "primitive-io:github-connect":
+        if ("token" in message && typeof message.token === "string") return connectGitHub(message.token);
+        return Promise.reject(new Error("GitHubトークンが不正です。"));
+      case "primitive-io:github-disconnect": return disconnectGitHub();
+      case "primitive-io:github-verify": return verifyGitHubConnection();
+      case "primitive-io:github-list-repositories": return listGitHubRepositories();
+      case "primitive-io:github-list-directory":
+        if ("owner" in message && "repo" in message && "ref" in message && "path" in message && "treeSha" in message && typeof message.owner === "string" && typeof message.repo === "string" && typeof message.ref === "string" && typeof message.path === "string" && typeof message.treeSha === "string") return listGitHubDirectory(message.owner, message.repo, message.ref, message.path, message.treeSha);
+        return Promise.reject(new Error("GitHubディレクトリの指定が不正です。"));
       case "primitive-io:dropbox-status":
         return getDropboxAuthStatus();
       case "primitive-io:dropbox-connect":

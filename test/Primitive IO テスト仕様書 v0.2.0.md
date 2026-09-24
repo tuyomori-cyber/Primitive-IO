@@ -3,7 +3,7 @@
 - テストバージョン: v0.2.0
 - 作成日: 2026-09-23
 - 対象: Firefox / ChatGPT Web / Dropbox / GitHub.com
-- 状態: GitHub Explorer UI 実装済み、GitHub 接続・API 層（Todo 8）未実装
+- 状態: GitHub Explorer、fine-grained PAT 接続、リポジトリ／Git Tree メタデータ取得を実装済み。自動・網羅テストと配布前確認は未完了。
 
 ## 1. 目的と品質基準
 
@@ -29,7 +29,7 @@ v0.2.0 は既存 Dropbox Explorer を維持し、GitHub Explorer からリポジ
 | セキュリティ・プライバシー確認 | token/本文非流出、権限、保存・削除 | Todo 8 完了後 |
 | Dropbox 回帰 | Dropbox OAuth、ツリー、プロンプト、自動送信 | v0.2.0 配布前 |
 
-GitHub 接続・API 層が未実装の現在は、静的検証と GitHub Explorer の未接続 UI だけが実行可能である。PAT を必要とするケースをモックで通過させたり、未実装の runtime message を成功扱いにしたりしない。
+GitHub 接続・API 層は実装済みである。PAT を必要とするケースはテスト用PATまたはモックで検証し、未実装の runtime message を成功扱いにしない。
 
 ## 3. テスト環境と準備
 
@@ -75,23 +75,40 @@ GitHub 接続・API 層が未実装の現在は、静的検証と GitHub Explore
 | V-02 [OK] | `npm run build` を実行する | `dist/background.js`、`content.js`、`options.js`、manifest、options HTML が生成される | Pass（2026-09-23） |
 | V-03 [OK] | `npm run package` と `unzip -t dist/primitive-io-0.2.0.xpi` を実行する | XPI にエラーがなく、必要な配布物を含む | Pass（2026-09-23） |
 | V-04 [OK] | `src/manifest.json` と `dist/manifest.json` を確認する | 両方の version が `0.2.0` | Pass（2026-09-23） |
-| V-05 [ ] Blocked（Todo 8） | manifest の host permission を確認する | Todo 8 完了時に `https://api.github.com/*` が追加され、不要な GitHub host permission がない | Blocked（Todo 8） |
+| V-05 [OK] | manifest の host permission を確認する | `https://api.github.com/*` が追加され、不要な GitHub host permission がない | Pass（2026-09-24） |
 | V-06 [OK] | `git diff --check` を実行する | 空白エラーなし | Pass（2026-09-23） |
 
+| V-07 [OK] | `npm test` を実行する | GitHub認証、GitHub RESTメタデータ、プロンプト生成のモックテストが成功する | Pass（2026-09-24、10 tests） |
+
+### 5.1 自動テスト実行結果
+
+- 実行日: 2026-09-24
+- 実行コマンド: `npm test`
+- 結果: **10 tests passed / 0 failed**
+- テスト実装: `test/github.test.ts`。GitHub APIへの実通信、PAT、実Firefoxは使用しない。
+
+| 対象 | 検証結果 |
+| --- | --- |
+| `githubAuth` | 空白PAT拒否、`GET /user`成功後だけのtrim済みPAT・account保存、401時の非保存、GitHubキーだけの接続解除を確認 |
+| `githubClient` | `/user/repos`ページング、owner/repo/tree SHAのURLエンコード、非再帰treeのfile/dir/symlink/submodule正規化、`truncated`拒否、429 `Retry-After`のrate limit表示、ネットワーク失敗の安全なエラー化を確認 |
+| GitHubプロンプト | 複数選択と日本語・空白・`#`を含むpathについて、`repository/ref/path`をURLエンコードせず生成することを確認 |
+
+実Firefoxでの再起動・拡張注入、実PATの組織権限、ChatGPT側GitHub連携、画面レイアウト、未テストのAPI異常系は、この結果だけでは合格としない。該当するGA/GC/GU/GPケースは未実施として残す。
 ## 6. GitHub 接続・設定画面テスト
 
 | ID / 判定 | 条件・手順 | 期待結果 |
 | --- | --- | --- |
-| GA-01 [ ] | 未接続で ChatGPT を開き、GitHub を選択する | 未接続メッセージとヘッダーの `⚙` 設定ボタンを表示し、PAT 入力欄はパネルに存在しない |
-| GA-02 [ ] | GitHub を選択してヘッダーの `⚙` 設定ボタンを押す | Dropbox 選択時と同じ拡張の設定画面が開く |
-| GA-03 [ ] | 空白だけの PAT で接続する | 保存せず、入力エラーを表示する |
-| GA-04 [ ] | 有効な限定 PAT で接続する | `GET /user` 成功後にだけ token を保存し、GitHub login を表示する |
-| GA-05 [ ] | 無効・期限切れ PAT で接続する | token を保存せず、認証失敗を表示する |
-| GA-06 [ ] | `Contents: read` を与えずに接続し、リポジトリを開く | 接続自体は検証可能なら維持し、ツリー取得時に権限不足を表示する |
+| GA-01 [OK] | 未接続で ChatGPT を開き、GitHub を選択する | 未接続メッセージとヘッダーの `⚙` 設定ボタンを表示し、PAT 入力欄はパネルに存在しない |
+- GC-09 部分実施（2026-09-24）: 無効PATの401、`Contents`なしprivate repoの404、モック429、OS側ネットワーク切断による `NETWORK_FAILURE` を確認。組織ポリシー由来の403はGA-07と合わせて未実施。
+| GA-02 [OK] | GitHub を選択してヘッダーの `⚙` 設定ボタンを押す | Dropbox 選択時と同じ拡張の設定画面が開く |
+| GA-03 [OK] | 空白だけの PAT で接続する | 保存せず、入力エラーを表示する |
+| GA-04 [OK] | 有効な限定 PAT で接続する | `GET /user` 成功後にだけ token を保存し、GitHub login を表示する |
+| GA-05 [OK] | 無効・期限切れ PAT で接続する | token を保存せず、認証失敗を表示する |
+| GA-06 [OK] | `Contents: read` を与えず、PATの対象に選んだprivate repositoryを開く | 接続とメタデータ一覧は維持し、tree取得時に権限不足（403または404）を表示する。public repositoryは匿名アクセスでtreeを読めるため、このケースに使わない |
 | GA-07 [ ] | 組織 PAT が承認待ちまたはポリシーで拒否された状態で一覧を取得する | 組織の PAT 設定・承認を確認する案内を表示し、他の閲覧可能リポジトリを誤って表示しない |
 | GA-08 [ ] | 接続後に Firefox を再起動して拡張を再読み込みする | 接続状態と login を復元する。PAT の入力値は設定画面に再表示しない |
-| GA-09 [ ] | 接続解除する | `githubTokens` と GitHub アカウント情報だけを local storage から削除する。Dropbox 接続を維持し、GitHub 側 PAT は失効しない旨を表示する |
-| GA-10 [ ] | token 設定後に Console、content script message、ChatGPT DOM を確認する | PAT 値と Authorization header が出力・注入されない |
+| GA-09 [OK] | 接続解除する | `githubTokens` と GitHub アカウント情報だけを local storage から削除する。Dropbox 接続を維持し、GitHub 側 PAT は失効しない旨を表示する |
+| GA-10 [OK] | token 設定後に Console、content script message、ChatGPT DOM を確認する | PAT 値と Authorization header が出力・注入されない |
 
 GA-01 は Todo 8 前でも実施する。GA-03〜GA-10 は Todo 8 完了後に実施する。
 
@@ -99,7 +116,7 @@ GA-01 は Todo 8 前でも実施する。GA-03〜GA-10 は Todo 8 完了後に�
 
 | ID / 判定 | 条件・手順 | 期待結果 |
 | --- | --- | --- |
-| GC-01 [ ] | API リクエストを検査する | `Accept`、Authorization、API version、`User-Agent` を送る。書き込み HTTP method を使わない |
+| GC-01 [OK] | API リクエストを検査する | `Accept`、Authorization、API version、`User-Agent` を送る。書き込み HTTP method を使わない。Pass（2026-09-24、background Networkで`api.github.com`へのGET、リポジトリ一覧・非再帰tree取得、および4ヘッダーを確認） |
 | GC-02 [ ] | `GET /user/repos` を 101 件以上返すモックまたはテストアカウントで取得する | `per_page=100` と Link header を使って全ページを統合し、重複なく表示する |
 | GC-03 [ ] | owner、collaborator、organization member の各リポジトリを用意する | `affiliation=owner,collaborator,organization_member` により、PAT が許可する各リポジトリを表示する |
 | GC-04 [ ] | private/public を含む一覧を取得する | `owner/name`、private/public、既定ブランチを正しく正規化する |
@@ -112,7 +129,7 @@ GA-01 は Todo 8 前でも実施する。GA-03〜GA-10 は Todo 8 完了後に�
 | GC-11 [ ] | 同一 tree を同時に展開する | API リクエストは 1 回に集約され、完了後に同じ結果を返す |
 | GC-12 [ ] | 成功済み tree を閉じて再展開する | 当該ページのメモリキャッシュを使用する。更新操作後はキャッシュを捨てて再取得する |
 | GC-13 [ ] | 日本語、空白、`#`、`?`、`%`、`/` を含む owner/repo/ref/path の fixture を使う | owner/repo/tree-ish を path segment として正しくエンコードする。表示・プロンプトは API 応答の path をそのまま使う |
-| GC-14 [ ] | Network の response と storage を確認する | file content、Base64、download URL、GitHub Code Search の結果を取得・保存しない |
+| GC-14 [OK] | Network の response と storage を確認する | file content、Base64、download URL、GitHub Code Search の結果を取得・保存しない。Pass（2026-09-24、GitHub APIはリポジトリ一覧・Git Treeのみ、ChatGPT側からGitHub API通信なし、storage.localは認証・スキーマキーだけを確認） |
 
 ## 8. GitHub Explorer UI・操作テスト
 
@@ -120,8 +137,8 @@ GA-01 は Todo 8 前でも実施する。GA-03〜GA-10 は Todo 8 完了後に�
 | --- | --- | --- |
 | GU-01 [OK] | ChatGPT を開く | Cloud Explorer パネルは1つだけ表示される。ヘッダーのクライアント名を選ぶと Dropbox / GitHub のドロップダウンが開き、選択中クライアントだけを表示する |
 | GU-02 [OK] | 未接続状態でドロップダウンから GitHub を選ぶ | 未接続の理由と設定画面への導線を表示し、読み込みボタンを無効にする |
-| GU-03 [ ] | 接続済みでリポジトリ一覧を開く | login、リポジトリ名、private/public、既定ブランチを表示する |
-| GU-04 [ ] | リポジトリを選ぶ | root tree を表示し、リポジトリ切替時に以前の tree・展開状態・選択を解除する |
+| GU-03 [OK] | 接続済みでリポジトリ一覧を開く | login、リポジトリ名、private/public、既定ブランチを表示する |
+| GU-04 [OK] | リポジトリを選ぶ | root tree を表示し、リポジトリ切替時に以前の tree・展開状態・選択を解除する |
 | GU-05 [ ] | 深い階層を展開・折りたたむ | 直下だけを遅延表示し、折りたたみ後も同一ページでは取得済みの tree を再利用する |
 | GU-06 [ ] | 空リポジトリと空フォルダを開く | 空であることを区別して表示する |
 | GU-07 [ ] | file、symlink、submodule を表示する | file だけがチェック可能で、symlink/submodule はグレー表示・選択不可である |
@@ -139,7 +156,7 @@ GA-01 は Todo 8 前でも実施する。GA-03〜GA-10 は Todo 8 完了後に�
 | GP-01 [ ] | GitHub ファイルを 1 件選択して「読み込み」を押す | 次のヘッダーと、選択した `repository`、既定 `ref`、repository root 相対 `path` を含むプロンプトを投入する |
 | GP-02 [ ] | 同一リポジトリで複数ファイルを選ぶ | 選択順の全項目を 1 プロンプトに含める |
 | GP-03 [ ] | 日本語・空白・記号を含む path を選ぶ | path を改変・URL エンコードせずにプロンプトへ表示する |
-| GP-04 [ ] | ChatGPT 入力欄に既存下書きを置く | 下書きを変更せず、中止理由を表示する |
+| GP-04 [OK] | ChatGPT 入力欄に既存下書きを置く | 下書きを変更せず、中止理由を表示する |
 | GP-05 [ ] | 入力欄未検出・編集不可にする | ChatGPT DOM 操作の失敗理由を表示し、送信しない |
 | GP-06 [ ] | auto-send OFF で読み込む | プロンプトを投入するだけで、送信ボタンを押さない |
 | GP-07 [ ] | auto-send ON で読み込む | プロンプト投入後にだけ送信を試行する。送信ボタン未検出・無効を区別する |
@@ -185,4 +202,4 @@ v0.2.0 では Dropbox の認証、API、プロンプト形式を変更しない�
 
 ## 12. 現在の実施状況
 
-各テストケースの最新判定は、該当するテスト表の ID 横に記入する。v0.2.0 では Todo 8 が未実装の間、GitHub API を前提とする項目を `[ ] Blocked（Todo 8）` と記録する。GitHub Explorer UI だけを根拠に GitHub 対応を完了とは判定しない。
+各テストケースの最新判定は、該当するテスト表の ID 横に記入する。Todo 8 は実装済みだが、GitHub対応版の受け入れは未完了である。実施していないGitHub API前提ケースは未実施として残し、GitHub Explorer UIだけを根拠に配布完了とは判定しない。

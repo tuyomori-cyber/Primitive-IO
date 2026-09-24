@@ -20,7 +20,8 @@
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://api.dropboxapi.com/*",
-    "https://www.dropbox.com/*"
+    "https://www.dropbox.com/*",
+    "https://api.github.com/*"
   ],
   "background": {
     "scripts": ["background.js"]

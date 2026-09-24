@@ -140,3 +140,55 @@ void refresh().catch((error: unknown) => {
 void readAutoSend().then((enabled) => {
   autoSendCheckbox.checked = enabled;
 });
+
+type GitHubStatus = { connected: boolean; account?: { login: string; id: number } };
+type GitHubRepository = { fullName: string; private: boolean; defaultBranch: string };
+const githubToken = requiredElement<HTMLInputElement>("#github-token");
+const githubState = requiredElement<HTMLElement>("#github-state");
+const githubConnect = requiredElement<HTMLButtonElement>("#github-connect");
+const githubVerify = requiredElement<HTMLButtonElement>("#github-verify");
+const githubList = requiredElement<HTMLButtonElement>("#github-list-repositories");
+const githubDisconnect = requiredElement<HTMLButtonElement>("#github-disconnect");
+const githubRepositories = requiredElement<HTMLElement>("#github-repositories");
+const githubStatus = requiredElement<HTMLElement>("#github-status");
+const githubRequest = (message: unknown): Promise<GitHubStatus> => browser.runtime.sendMessage(message) as Promise<GitHubStatus>;
+function githubMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") return error.message;
+  return fallback;
+}
+function showGitHubStatus(message: string, kind: "success" | "error" | "info" = "info"): void {
+  githubStatus.textContent = message;
+  githubStatus.className = kind === "info" ? "" : kind;
+}
+function renderGitHub(status: GitHubStatus): void {
+  githubToken.value = "";
+  githubToken.style.display = status.connected ? "none" : "block";
+  githubConnect.style.display = status.connected ? "none" : "block";
+  githubVerify.style.display = status.connected ? "block" : "none";
+  githubList.style.display = status.connected ? "block" : "none";
+  githubDisconnect.style.display = status.connected ? "block" : "none";
+  githubState.textContent = status.connected ? `接続済み: ${status.account?.login ?? "GitHub"}` : "未接続です。fine-grained PATを登録してください。";
+}
+githubConnect.addEventListener("click", async () => {
+  try { renderGitHub(await githubRequest({ type: "primitive-io:github-connect", token: githubToken.value })); showGitHubStatus("GitHubへ接続しました。", "success"); }
+  catch (error) { showGitHubStatus(githubMessage(error, "GitHubへ接続できませんでした。"), "error"); }
+});
+githubVerify.addEventListener("click", async () => {
+  try { renderGitHub(await githubRequest({ type: "primitive-io:github-verify" })); showGitHubStatus("GitHub接続を確認しました。", "success"); }
+  catch (error) { showGitHubStatus(githubMessage(error, "GitHub接続を確認できませんでした。"), "error"); }
+});
+githubDisconnect.addEventListener("click", async () => {
+  try { renderGitHub(await githubRequest({ type: "primitive-io:github-disconnect" })); githubRepositories.textContent = ""; showGitHubStatus("GitHubのローカル接続情報を削除しました。", "success"); }
+  catch (error) { showGitHubStatus(githubMessage(error, "GitHub接続を解除できませんでした。"), "error"); }
+});
+githubList.addEventListener("click", async () => {
+  try {
+    githubRepositories.textContent = "取得中…";
+    const repositories = await browser.runtime.sendMessage({ type: "primitive-io:github-list-repositories" }) as GitHubRepository[];
+    githubRepositories.textContent = repositories.length === 0 ? "表示できるリポジトリはありません。" : `表示可能: ${repositories.length}件\n\n${repositories.slice(0, 20).map((repo) => `${repo.private ? "🔒" : "◫"} ${repo.fullName} (${repo.defaultBranch})`).join("\n")}`;
+  } catch (error) { githubRepositories.textContent = githubMessage(error, "リポジトリを取得できませんでした。"); }
+});
+void githubRequest({ type: "primitive-io:github-status" }).then(renderGitHub).catch((error: unknown) => {
+  showGitHubStatus(githubMessage(error, "GitHub接続状態を確認できませんでした。"), "error");
+});
