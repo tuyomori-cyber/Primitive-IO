@@ -124,16 +124,16 @@
 
 ### 8. GitHub接続とメタデータ取得を実装する
 
-- [ ] `src/manifest.json` に `https://api.github.com/*` のhost permissionを追加する
-- [ ] `githubAuth.ts` を作る
+- [x] `src/manifest.json` に `https://api.github.com/*` のhost permissionを追加する
+- [x] `githubAuth.ts` を作る
   - fine-grained PATをpassword入力から受け取り、空白を除去して検証する
   - `GET /user` 成功時だけtokenと `login/id` を `storage.local` へ保存する
   - token値、Authorization header、APIのraw error bodyをcontent script・UI・consoleへ渡さない
   - 接続解除ではGitHub保存キーだけを削除し、GitHub側PATの失効はユーザー操作であると表示する
-- [ ] 設定画面にGitHub接続セクションを追加する
+- [x] 設定画面にGitHub接続セクションを追加する
   - `Metadata: read` と `Contents: read` だけを与えた、対象リポジトリ限定・有効期限付きfine-grained PATの作成手順を示す
   - 接続・検証、接続中login表示、リポジトリ確認、ローカル接続解除を実装する
-- [ ] `githubClient.ts` を作る
+- [x] `githubClient.ts` を作る
   - 全リクエストで `Accept`、`Authorization`、`X-GitHub-Api-Version`、`User-Agent: Primitive-IO` を送る
   - `GET /user/repos` を `affiliation=owner,collaborator,organization_member`、`per_page=100` でページングする
   - Git Trees APIを非再帰で呼び、rootは既定ブランチ、子フォルダはtree SHAで取得する
@@ -157,10 +157,11 @@
 ### 10. v0.2.0のテスト・配布説明を更新する
 
 - [ ] `githubAuth` と `githubClient` の単体テストを追加する（PAT検証、ページング、URLエンコード、型正規化、truncated、rate limit、ネットワーク失敗）
+  - 基盤と初期9件（PAT保存・ページング・URLエンコード・tree正規化・truncated・rate limit・プロンプト生成）は追加済み。残りの異常系とUI操作を追加する
 - [ ] GitHub ExplorerのUIテストを追加する（クライアント切替、5件上限、未接続、空リポジトリ、repo切替、下書き保護、auto-send）
 - [ ] public/private/組織/collaboratorリポジトリ、日本語・記号パス、深い階層、symlink、submodule、truncatedを手動確認する
 - [ ] ChatGPT側GitHub Appに同一リポジトリを許可した状態で、repository/ref/pathの参照を手動確認する
-- [ ] README、CHANGELOG、テスト仕様書、Firefoxのデータ利用申告をGitHub対応へ更新する
+- [x] README、CHANGELOG、テスト仕様書をGitHub対応へ更新する。Firefoxのデータ利用申告は配布前に実際の収集内容で再確認する
 - [ ] Dropbox回帰テストを実施し、保存キー・runtime message・単一パネルでのクライアント切替が相互に干渉しないことを確認する
 
 完了条件: v0.2.0仕様書の完成条件を満たし、Dropbox機能を回帰させずにGitHub Explorerを配布できる。

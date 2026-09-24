@@ -1,10 +1,10 @@
 # Primitive IO
 
-Firefox上のChatGPT WebにCloud Explorerを表示し、DropboxまたはGitHubのファイル選択情報をプロンプトとして入力する拡張です。クライアントは一つのパネル内のドロップダウンで切り替えます。ファイル本文は取得・保存しません。
+Firefox上のChatGPT WebにCloud Explorerを表示し、DropboxまたはGitHubのファイル選択情報をプロンプトとして入力する拡張です。クライアントは一つのパネル内のドロップダウンで切り替えます。
 
-現在の配布機能はDropbox Explorerです。v0.2.0ではCloud Explorer内にGitHub ExplorerのUIを追加しましたが、GitHubのPAT接続・リポジトリ取得は実装中のため、GitHub Explorerはまだ利用できません。設計と残作業は[GitHub Explorer仕様](specification/Primitive%20IO%20v0.2.0.md)および[実装Todo](.context/ToDo.md)を参照してください。
+v0.2.0では、fine-grained PATで許可されたGitHubリポジトリの一覧と非再帰ツリーを表示できます。DropboxまたはGitHubで選んだファイルの識別情報を、ChatGPT入力欄へ投入します。設計と残作業は[GitHub Explorer仕様](specification/Primitive%20IO%20v0.2.0.md)および[実装Todo](.context/ToDo.md)を参照してください。
 
-Firefoxデスクトップ版 140以降が必要です。インストール時には、Dropboxアカウントの表示名・メールアドレスと、ユーザーが選択してChatGPTへ投入するDropboxパスを扱うことをFirefoxのデータ利用許可として表示します。テレメトリや独自サーバーへの送信は行いません。
+Firefoxデスクトップ版 140以降が必要です。インストール時には、Dropboxのアカウント情報・選択パス、およびGitHubのlogin・リポジトリ／パス情報を扱うことをFirefoxのデータ利用許可として表示します。テレメトリや独自サーバーへの送信は行いません。
 
 ## 署名済みXPIをそのまま使う
 
@@ -27,6 +27,7 @@ cd Primitive-IO
 npm install
 npm run check
 npm run build
+npm test
 ```
 
 開発中だけは Firefox の `about:debugging#/runtime/this-firefox` から `dist/manifest.json` を「一時的なアドオン」として読み込めます。この方法はFirefoxを再起動すると消えます。
@@ -68,8 +69,16 @@ Dropbox Developer Consoleには、この拡張のFirefox OAuthリダイレクト
 
 拡張の「接続解除」はDropboxトークンの失効を試みたうえで、Firefox内に保存された認証情報を削除します。
 
+## GitHub連携
+
+GitHub Explorerは、利用者ごとに作成したfine-grained personal access token（PAT）を使います。GitHubのtoken settingsで、resource ownerと必要なリポジトリだけを選び、有効期限を設定してください。Repository permissionsは`Metadata: Read-only`と`Contents: Read-only`だけを設定し、その他の権限は付与しないでください。このPATはPrimitive IO専用とし、他のアプリ、CLI、スクリプト、自動化で使い回さないでください。
+
+設定画面の「GitHub 接続」でPATを入力して「接続して検証」を選びます。`GET /user`が成功した場合だけ、PATとGitHub loginをFirefoxのローカル保存領域へ保存します。PATは保存後に設定画面へ再表示しません。「リポジトリを確認」では、PATが表示を許可したリポジトリ数と先頭20件を確認できます。
+
+拡張の現行実装は、GitHub APIのファイル本文取得APIを呼ばず、リポジトリ一覧とGit Treeのメタデータ（名前、パス、SHA、種別）のみを取得します。これは現行実装の責務境界であり、利用者がPATに与える権限や改変版・将来版まで含めて本文取得が絶対に起きないことを保証するものではありません。「読み込み」を押した後の本文参照は、利用者が別途許可したChatGPTのGitHub連携側で行われます。
+
 ## 既知の制約
 
 - ChatGPTの入力欄・送信ボタンのDOM構造に依存します。ChatGPTのUI変更後は追従修正が必要になる場合があります。
 - 拡張はDropboxのファイル本文を読み取りません。送信するのは、選択したファイルパスを含むChatGPT向けプロンプトだけです。
-- GitHub ExplorerはUI実装段階です。GitHub接続が完成するまで、GitHubのPATを入力・保存する画面やGitHub API通信は提供しません。
+- GitHubのリポジトリ本文の参照可否は、Primitive IO用PATとは別に、ChatGPT側のGitHub連携で同じリポジトリを許可しているかに依存します。

@@ -235,6 +235,7 @@ export function mountDropboxExplorer(): void {
     if (supported) {
       const checkbox = makeElement("input");
       checkbox.type = "checkbox";
+      setStyles(checkbox, { display: "inline-block", width: "16px", height: "16px", appearance: "auto", "flex": "0 0 auto", cursor: "pointer" });
       checkbox.checked = selectedEntries.has(entry.id);
       checkbox.setAttribute("aria-label", `${entry.name}を選択`);
       checkbox.addEventListener("change", () => {
