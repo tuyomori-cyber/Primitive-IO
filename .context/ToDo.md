@@ -1,6 +1,6 @@
 # Primitive IO — 実装Todo
 
-最終更新: 2026-09-23
+最終更新: 2026-09-24
 
 ## 実装方針
 
@@ -23,6 +23,7 @@
   - `npm run check`
   - `npm run build`
   - Firefoxで `about:debugging#/runtime/this-firefox` を開き、「一時的なアドオンを読み込む」から **`dist/manifest.json`** を選択する（`src/manifest.json` はビルド元であり、選択しない）
+  - `npm test`（GitHubの自動テスト）
 - [x] `manifest.json`、background処理、content script、設定画面の最小構成を作る
 - [x] 権限を最小化する
   - `identity`
@@ -156,8 +157,8 @@
 
 ### 10. v0.2.0のテスト・配布説明を更新する
 
-- [ ] `githubAuth` と `githubClient` の単体テストを追加する（PAT検証、ページング、URLエンコード、型正規化、truncated、rate limit、ネットワーク失敗）
-  - 基盤と初期9件（PAT保存・ページング・URLエンコード・tree正規化・truncated・rate limit・プロンプト生成）は追加済み。残りの異常系とUI操作を追加する
+- [ ] `githubAuth` と `githubClient` の自動テストを拡充する（403、404、rate limit reset header、同時取得、キャッシュ、全異常系）
+  - [x] `npm test` 基盤を追加。10件でPAT検証、401時の非保存、接続解除、ページング、URLエンコード、tree正規化、truncated、429、ネットワーク失敗、プロンプト生成を確認（2026-09-24）
 - [ ] GitHub ExplorerのUIテストを追加する（クライアント切替、5件上限、未接続、空リポジトリ、repo切替、下書き保護、auto-send）
 - [ ] public/private/組織/collaboratorリポジトリ、日本語・記号パス、深い階層、symlink、submodule、truncatedを手動確認する
 - [ ] ChatGPT側GitHub Appに同一リポジトリを許可した状態で、repository/ref/pathの参照を手動確認する
@@ -166,9 +167,48 @@
 
 完了条件: v0.2.0仕様書の完成条件を満たし、Dropbox機能を回帰させずにGitHub Explorerを配布できる。
 
-## MVPでは実装しないこと
+
+### 10.1 v0.2.0 テスト実施状況（2026-09-24）
+
+- [x] 静的チェック、ビルド、GitHub自動テスト10件を実行した。
+- [x] GitHub手動テスト GA-01〜06、GA-09、GA-10を確認した。無効PATの設定画面エラー表示、privateリポジトリのContents未許可時の拒否、接続解除後の保存キー削除を含む。
+- [x] セキュリティ手動テスト GC-01、GC-14を確認した。GitHub API通信の要求ヘッダ、ChatGPTページへPAT・GitHub API通信を渡さないこと、storage.localの保存キーを確認した。
+- [x] GC-09は無効PATの401、Contents未許可のprivateリポジトリに対する404、429、OS側ネットワーク切断時のネットワーク失敗を確認した。組織ポリシーに起因する403は未実施。
+- [x] GitHub Explorerの基本フロー（接続、リポジトリ表示、ツリー展開、ファイル選択、プロンプト生成）と、Dropbox `.txt` / `.md` の選択・プロンプト生成の回帰を確認した。
+- [ ] GA-07（組織ポリシー等による403）、GA-08（配布後の署名済みXPI）を実施する。
+- [ ] GitHub UIの残りケース（GU-05〜13）と、GitHub App連携確認（GP-01〜10 / DR-01〜08）を実施する。
+
+v0.2.0の配布判定は、未実施の手動テストとFirefox Add-onsの申告・署名済みXPI確認を完了してから行う。
+
+## v0.3.0 — Dropbox Output
+
+仕様: `specification/Primitive IO v0.3.0.md`
+
+### 11. Dropbox Outputを実装する
+
+- [ ] 出力先のフォルダを明示的に選ぶ「アクティブフォルダ」操作をDropbox Explorerへ追加する。展開状態とは独立させ、選択中のフォルダパスを視覚表示・コピー可能にする。
+- [ ] Output用の状態をページ単位で管理する。Dropboxから「読み込み」プロンプトを投入したファイルだけを更新候補にし、GitHub由来のファイルは候補に含めない。
+- [ ] ファイル名入力を追加する。空白のみと `/` を拒否し、それ以外は受け付ける。
+- [ ] バージョン番号決定ロジックを実装する。アクティブフォルダ直下を保存直前に再取得し、入力名の `-v<number>` と同名系列の既存最大値から次の番号を決め、拡張子を維持する。
+- [ ] 新規作成・更新候補それぞれの保存プロンプトを生成する。内容は「このコンテキストでの議論の内容をまとめて」とし、常に新規作成、上書き禁止、代替名禁止を指示する。
+- [ ] 「保存」ボタンでChatGPT入力欄へプロンプトを投入し、既存のauto-send設定がオンの時だけ、そのユーザー操作に起因して送信する。
+- [ ] 保存成功・失敗を判定・表示しない。Dropbox APIへの書き込み、ChatGPT出力の取得・解析、保存結果の保存を実装しない。
+- [ ] Output状態、UI、runtime messageをDropbox/GitHub Inputと分離し、PAT・Dropboxトークン・ファイル本文をcontent scriptやChatGPTページへ渡さない。
+
+完了条件: ユーザーがアクティブなDropboxフォルダとファイル名を選び、決定済みのバージョン付き新規ファイル名を含む保存プロンプトを、確認送信または既存設定による自動送信でChatGPTへ渡せる。
+
+### 12. v0.3.0 テスト・配布説明を更新する
+
+- [ ] バージョン番号決定の自動テストを追加する（拡張子あり／なし、入力番号あり／なし、既存候補なし／複数、Unicode名、無効入力）。
+- [ ] アクティブフォルダ、候補絞り込み、保存プロンプト、auto-send、下書き保護、ページ遷移時の状態消去のUIテストを追加する。
+- [ ] Dropbox APIが保存直前の一覧取得に失敗した場合、保存プロンプトを投入しないことを手動・自動テストする。
+- [ ] Dropboxへの書き込みAPIを呼ばないこと、ChatGPTページへトークン・本文を渡さないこと、保存成否を記録しないことをネットワーク・storage inspectionで確認する。
+- [ ] README、CHANGELOG、テスト仕様書へ、Outputの制約（Dropboxのみ・新規作成のみ・成功判定なし）と利用手順を追記する。
+
+完了条件: v0.3.0仕様のOutputフローと非機能要件を確認し、v0.2.0のInput機能を回帰させずに配布できる。
 
 - Dropboxファイル本文の取得・保存・送信
+## MVPでは実装しないこと
 - Dropboxへの書き込み、保存、差分、バージョン更新
 - ChatGPT出力の取得・解析・成功判定
 - 全Dropboxの再帰スキャン、常時同期、バックグラウンド巡回
