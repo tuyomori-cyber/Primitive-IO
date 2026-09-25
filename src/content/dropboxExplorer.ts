@@ -63,12 +63,15 @@ export function determineOutputFileName(baseName: string, entries: OutputFileEnt
   return stem + "-v" + (Math.max(inputVersion, existingVersion) + 1) + ".md";
 }
 
+export function formatDropboxDisplayPath(folderPath: string): string {
+  return folderPath === "/" ? "/Dropbox" : "/Dropbox" + folderPath;
+}
+
 export function buildDropboxOutputPrompt(folderPath: string, fileName: string): string {
   return [
-    "Dropbox 連携を使って、この会話での議論内容を Markdown 文書として要約し、次の新規ファイルとして保存してください。",
-    "既存ファイルは上書きしないでください。指定したファイル名以外の代替名を決めないでください。",
+    "Dropboxに今までの議論の内容をまとめて保存してください。",
     "",
-    "保存先フォルダ: " + folderPath,
+    "保存先フォルダ: " + formatDropboxDisplayPath(folderPath),
     "ファイル名: " + fileName
   ].join("\n");
 }
@@ -420,7 +423,7 @@ export function mountDropboxExplorer(): void {
     const validationError = validateOutputBaseName(outputBaseName.value);
     const previewEntries = activeFolder ? entriesByFolderId.get(activeFolder.id) ?? [] : [];
     const preview = !validationError && activeFolder ? determineOutputFileName(outputBaseName.value, previewEntries) : undefined;
-    outputDestination.textContent = activeFolder ? "保存先: " + activeFolder.path : "保存先: 未選択";
+    outputDestination.textContent = activeFolder ? "保存先: " + formatDropboxDisplayPath(activeFolder.path) : "保存先: 未選択";
     outputFileName.textContent = preview ? "保存ファイル名: " + preview : "保存ファイル名: —";
     outputButton.disabled = !activeFolder || !!validationError || outputCycleComplete;
     outputButton.style.opacity = outputButton.disabled ? "0.5" : "1";

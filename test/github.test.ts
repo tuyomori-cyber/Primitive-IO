@@ -113,7 +113,7 @@ describe("githubClient", () => {
   });
 });
 import { buildGitHubPrompt } from "../src/content/githubExplorer";
-import { buildDropboxOutputPrompt, determineOutputFileName, validateOutputBaseName } from "../src/content/dropboxExplorer";
+import { buildDropboxOutputPrompt, determineOutputFileName, formatDropboxDisplayPath, validateOutputBaseName } from "../src/content/dropboxExplorer";
 
 describe("GitHub prompt", () => {
   it("preserves repository, default ref, and unencoded paths for one or more files", () => {
@@ -150,7 +150,14 @@ describe("Dropbox output naming", () => {
     const prompt = buildDropboxOutputPrompt("/project/primitive-io", "議事録-v3.md");
     assert.match(prompt, /Markdown 文書/);
     assert.match(prompt, /上書きしない/);
-    assert.match(prompt, /保存先フォルダ: \/project\/primitive-io/);
+    assert.match(prompt, /保存先フォルダ: \/Dropbox\/project\/primitive-io/);
     assert.match(prompt, /ファイル名: 議事録-v3\.md/);
+  });
+});
+
+describe("Dropbox destination path display", () => {
+  it("shows the Dropbox root for root and nested destination paths", () => {
+    assert.equal(formatDropboxDisplayPath("/"), "/Dropbox");
+    assert.equal(formatDropboxDisplayPath("/project/primitive-io"), "/Dropbox/project/primitive-io");
   });
 });
