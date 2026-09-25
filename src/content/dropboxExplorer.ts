@@ -38,6 +38,40 @@ function isSupportedFile(name: string): boolean {
   return lowered.endsWith(".md") || lowered.endsWith(".txt");
 }
 
+export type OutputFileEntry = Pick<DropboxEntry, "name" | "type">;
+
+export function validateOutputBaseName(value: string): string | undefined {
+  const name = value.trim();
+  if (!name) return "ベースファイル名を入力してください。";
+  if (name.includes("/")) return "ベースファイル名に / は使えません。";
+  if (/\.[^.]+$/u.test(name)) return "拡張子は入力せず、ベースファイル名だけを指定してください。";
+  return undefined;
+}
+
+export function determineOutputFileName(baseName: string, entries: OutputFileEntry[]): string {
+  const input = baseName.trim();
+  const match = input.match(/^(.*)-v(0|[1-9][0-9]*)$/u);
+  const stem = match ? match[1] : input;
+  const inputVersion = match ? Number(match[2]) : 0;
+  const escapedStem = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp("^" + escapedStem + "-v(0|[1-9][0-9]*)\\.md$", "iu");
+  const existingVersion = entries.reduce((maximum, entry) => {
+    if (entry.type !== "file") return maximum;
+    const version = entry.name.match(pattern)?.[1];
+    return version === undefined ? maximum : Math.max(maximum, Number(version));
+  }, 0);
+  return stem + "-v" + (Math.max(inputVersion, existingVersion) + 1) + ".md";
+}
+
+export function buildDropboxOutputPrompt(folderPath: string, fileName: string): string {
+  return [
+    "Dropbox 連携を使って、この会話での議論内容を Markdown 文書として要約し、次の新規ファイルとして保存してください。",
+    "既存ファイルは上書きしないでください。指定したファイル名以外の代替名を決めないでください。",
+    "",
+    "保存先フォルダ: " + folderPath,
+    "ファイル名: " + fileName
+  ].join("\n");
+}
 async function authStatus(): Promise<DropboxAuthStatus> {
   return browser.runtime.sendMessage({ type: "primitive-io:dropbox-status" }) as Promise<DropboxAuthStatus>;
 }
@@ -132,6 +166,15 @@ export function mountDropboxExplorer(): void {
   readButton.type = "button";
   const notice = makeElement("p");
   const autoSendIndicator = makeElement("p", "自動送信: OFF");
+  const outputSection = makeElement("div");
+  const outputDestination = makeElement("p", "保存先: 未選択");
+  const outputBaseName = makeElement("input");
+  outputBaseName.type = "text";
+  outputBaseName.placeholder = "ベースファイル名";
+  outputBaseName.setAttribute("aria-label", "出力するベースファイル名");
+  const outputFileName = makeElement("p", "保存ファイル名: —");
+  const outputButton = makeElement("button", "保存を依頼");
+  outputButton.type = "button";
 
   setStyles(header, {
     display: "flex",
@@ -181,9 +224,15 @@ export function mountDropboxExplorer(): void {
   setStyles(notice, { clear: "both", margin: "8px 0 0", "font-size": "12px", color: "#5f6368" });
   setStyles(autoSendIndicator, { margin: "8px 0 0", "font-size": "11px", color: "#5f6368" });
 
+  setStyles(outputSection, { clear: "both", margin: "14px 0 0", padding: "10px 0 0", "border-top": "1px solid #dadce0" });
+  setStyles(outputDestination, { margin: "0 0 6px", "font-size": "12px", "overflow-wrap": "anywhere" });
+  setStyles(outputBaseName, { width: "100%", "box-sizing": "border-box", padding: "6px", border: "1px solid #9aa0a6", "border-radius": "4px", "font-family": "system-ui, sans-serif" });
+  setStyles(outputFileName, { margin: "6px 0", "font-size": "12px", "overflow-wrap": "anywhere" });
+  setStyles(outputButton, { all: "initial", display: "inline-block", padding: "7px 12px", border: "0", "border-radius": "6px", background: "#2563eb", color: "#ffffff", "font-family": "system-ui, sans-serif", "font-size": "13px", cursor: "pointer" });
+  outputSection.append(makeElement("strong", "Output (Markdown)"), outputDestination, outputBaseName, outputFileName, outputButton);
   panel.append(header, body, footer);
   header.append(clientSelector, account, refresh, settings, close);
-  footer.append(selectionSummary, readButton, notice, autoSendIndicator);
+  footer.append(selectionSummary, readButton, notice, autoSendIndicator, outputSection);
   document.body.append(launcher, panel);
 
   clientSelector.addEventListener("change", () => {
@@ -207,6 +256,8 @@ export function mountDropboxExplorer(): void {
   const selectedEntries = new Map<string, DropboxEntry>();
   let available = false;
   let autoSend = false;
+  let activeFolder: DropboxEntry | undefined;
+  let outputCycleComplete = false;
 
   function setMessage(text: string, color = "#5f6368"): void {
     message.textContent = text;
@@ -312,7 +363,21 @@ export function mountDropboxExplorer(): void {
         expandedFolderIds.add(entry.id);
         void load(entry.id);
       });
-      target.append(folder);
+      const folderRow = makeElement("div");
+      setStyles(folderRow, { display: "flex", "align-items": "center" });
+      folder.style.flex = "1";
+      const destinationButton = makeElement("button", activeFolder?.id === entry.id ? "保存先" : "保存先にする");
+      destinationButton.type = "button";
+      setStyles(destinationButton, { all: "initial", padding: "3px 6px", margin: "0 8px 0 4px", border: "1px solid #9aa0a6", "border-radius": "4px", color: "#374151", "font-family": "system-ui, sans-serif", "font-size": "11px", cursor: "pointer" });
+      destinationButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        activeFolder = entry;
+        outputCycleComplete = false;
+        showNotice("保存先を設定しました。", "#137333");
+        render();
+      });
+      folderRow.append(folder, destinationButton);
+      target.append(folderRow);
 
       if (expanded) {
         const children = makeElement("div");
@@ -335,8 +400,31 @@ export function mountDropboxExplorer(): void {
       renderFooter();
       return;
     }
+    if (entriesByFolderId.has(rootFolderId)) {
+      const rootDestination = makeElement("button", activeFolder?.id === rootFolderId ? "Dropbox rootは保存先です" : "Dropbox rootを保存先にする");
+      rootDestination.type = "button";
+      setStyles(rootDestination, { all: "initial", display: "block", margin: "6px 12px", padding: "4px 6px", border: "1px solid #9aa0a6", "border-radius": "4px", color: "#374151", "font-family": "system-ui, sans-serif", "font-size": "11px", cursor: "pointer" });
+      rootDestination.addEventListener("click", () => {
+        activeFolder = { id: rootFolderId, name: "Dropbox root", path: "/", type: "folder" };
+        outputCycleComplete = false;
+        showNotice("保存先を設定しました。", "#137333");
+        render();
+      });
+      body.append(rootDestination);
+    }
     renderFolder(rootFolderId, 0, body);
     renderFooter();
+  }
+
+  function renderOutput(): void {
+    const validationError = validateOutputBaseName(outputBaseName.value);
+    const previewEntries = activeFolder ? entriesByFolderId.get(activeFolder.id) ?? [] : [];
+    const preview = !validationError && activeFolder ? determineOutputFileName(outputBaseName.value, previewEntries) : undefined;
+    outputDestination.textContent = activeFolder ? "保存先: " + activeFolder.path : "保存先: 未選択";
+    outputFileName.textContent = preview ? "保存ファイル名: " + preview : "保存ファイル名: —";
+    outputButton.disabled = !activeFolder || !!validationError || outputCycleComplete;
+    outputButton.style.opacity = outputButton.disabled ? "0.5" : "1";
+    outputButton.style.cursor = outputButton.disabled ? "not-allowed" : "pointer";
   }
 
   function renderFooter(): void {
@@ -345,6 +433,7 @@ export function mountDropboxExplorer(): void {
     readButton.style.opacity = selectedEntries.size === 0 ? "0.5" : "1";
     readButton.style.cursor = selectedEntries.size === 0 ? "not-allowed" : "pointer";
     autoSendIndicator.textContent = `自動送信: ${autoSend ? "ON" : "OFF"}`;
+    renderOutput();
   }
 
   async function load(folderId: string, force = false): Promise<void> {
@@ -403,6 +492,7 @@ export function mountDropboxExplorer(): void {
     entriesByFolderId.clear();
     expandedFolderIds.clear();
     selectedEntries.clear();
+    outputCycleComplete = false;
     showNotice("");
     void load(rootFolderId, true);
   });
@@ -440,6 +530,23 @@ export function mountDropboxExplorer(): void {
       sendResult.ok ? "プロンプトを投入して送信しました。" : sendResult.message,
       sendResult.ok ? "#137333" : "#b3261e"
     );
+  });
+  outputBaseName.addEventListener("input", () => { outputCycleComplete = false; renderOutput(); });
+  outputButton.addEventListener("click", async () => {
+    if (!activeFolder) return;
+    const validationError = validateOutputBaseName(outputBaseName.value);
+    if (validationError) { showNotice(validationError, "#b3261e"); return; }
+    try {
+      const entries = await listFolder(activeFolder.id);
+      const fileName = determineOutputFileName(outputBaseName.value, entries);
+      const result = insertTextIntoEmptyComposer(buildDropboxOutputPrompt(activeFolder.path, fileName));
+      if (!result.ok) { showNotice(result.message, "#b3261e"); return; }
+      autoSend = await getAutoSend();
+      outputCycleComplete = true;
+      if (!autoSend) showNotice("保存依頼のプロンプトを入力欄へ投入しました。送信はしていません。", "#137333");
+      else { const sent = await sendComposer(); showNotice(sent.ok ? "保存依頼のプロンプトを投入して送信を試行しました。" : sent.message, sent.ok ? "#137333" : "#b3261e"); }
+    } catch (error) { showNotice(error instanceof Error ? error.message : "保存先フォルダを取得できませんでした。", "#b3261e"); }
+    renderFooter();
   });
   close.addEventListener("click", () => {
     panel.style.display = "none";

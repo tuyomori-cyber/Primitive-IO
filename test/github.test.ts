@@ -113,6 +113,7 @@ describe("githubClient", () => {
   });
 });
 import { buildGitHubPrompt } from "../src/content/githubExplorer";
+import { buildDropboxOutputPrompt, determineOutputFileName, validateOutputBaseName } from "../src/content/dropboxExplorer";
 
 describe("GitHub prompt", () => {
   it("preserves repository, default ref, and unencoded paths for one or more files", () => {
@@ -123,5 +124,33 @@ describe("GitHub prompt", () => {
     assert.match(prompt, /repository: octo\/repo\n  ref: main\n  path: docs\/日本語\/仕様 #1\.md/);
     assert.match(prompt, /repository: octo\/repo\n  ref: main\n  path: src\/index\.ts/);
     assert.ok(!prompt.includes("%23"));
+  });
+});
+
+
+describe("Dropbox output naming", () => {
+  it("uses Markdown, ignores leading-zero versions, and compares names case-insensitively", () => {
+    assert.equal(determineOutputFileName("Memo", [
+      { name: "memo-v1.md", type: "file" },
+      { name: "memo-v01.md", type: "file" },
+      { name: "memo-v7.txt", type: "file" },
+      { name: "memo-v9.md", type: "folder" }
+    ]), "Memo-v2.md");
+  });
+
+  it("preserves an explicit valid input version and validates base names", () => {
+    assert.equal(determineOutputFileName("議事録-v2", [{ name: "議事録-v5.md", type: "file" }]), "議事録-v6.md");
+    assert.match(validateOutputBaseName(" ") ?? "", /入力/);
+    assert.match(validateOutputBaseName("notes.md") ?? "", /拡張子/);
+    assert.match(validateOutputBaseName("a/b") ?? "", /使えません/);
+    assert.equal(validateOutputBaseName("設計メモ"), undefined);
+  });
+
+  it("builds a Markdown-only no-overwrite output prompt", () => {
+    const prompt = buildDropboxOutputPrompt("/project/primitive-io", "議事録-v3.md");
+    assert.match(prompt, /Markdown 文書/);
+    assert.match(prompt, /上書きしない/);
+    assert.match(prompt, /保存先フォルダ: \/project\/primitive-io/);
+    assert.match(prompt, /ファイル名: 議事録-v3\.md/);
   });
 });
